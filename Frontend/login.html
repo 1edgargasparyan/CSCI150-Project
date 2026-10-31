@@ -8,34 +8,21 @@
 
 </head>
 <body>
-    <main class="loginCard">
+    <main class="narrow">
         <div class="card">
-            <div class="login-brand">
-                <div class="app-mark" id="orgMark"></div>
-                    <h1 id="orgTitle"></h1>
-                <p class="muted" id="roleLine"></p>
-            </div>
-
-            <form id="loginForm" class="login-form" novalidate>
-                <label class="field">
-                    <span>Username</span>
-                    <input type="text" id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-                </label>
-                <label class="field">
-                    <span>Password</span>
-                    <div class="input-row">
-                        <input type="password" id="password" autocomplete="current-password" required>
-                        <button class="btn btn-ghost btn-sm" type="button" id="togglePw" aria-label="Show password">Show</button>
-                    </div>
-                </label>
-                <p class="error" id="err" role="alert"></p>
-                <button class="btn btn-primary btn-block" type="submit" id="submitBtn">Sign in</button>
-                <p class="small muted" id="helpText" style="text-align:center;margin:0"></p>
-            </form>
+        <div id="logo"></div>
+        <h1 id="orgTitle">Sign in</h1>
+        <p class="muted" id="roleText"></p>
+        <!-- onsubmit lets the Enter key sign in too -->
+        <form onsubmit="handleLogin(); return false;">
+            <label>Username <input id="username" autocomplete="username"></label>
+            <label>Password <input id="password" type="password" autocomplete="current-password"></label>
+            <button type="submit">Sign in</button>
+        </form>
+        <p id="msg" class="msg"></p>
         </div>
-        <a class="back-link" href="index.html">← Choose a different organization or role</a>
-
+        <a href="index.html">← Back</a>
     </main>
-    
+
 </body>
 </html>

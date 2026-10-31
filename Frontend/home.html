@@ -7,43 +7,19 @@
     <link rel="stylesheet" href="style.css">
     
 </head>
-<body class="center-page">
-    <main class="select-wrap">
-        <div class="select-head">
-            <div class="app-mark" id="orgMark">R</div>
-            <h1 id="orgTitle">Radio RNC</h1>
-            <p class="muted">Choose your organization, then how you'd like to sign in.</p>
-        </div>
-
+<body>
+    <main class="narrow">
         <div class="card">
-            <label class="field">
-                <span>Organization</span>
-                <select id="orgSelect"></select>
+            <h1>Radio RNC</h1>
+            <p class="muted">Choose your organization, then sign in as a member or an admin.</p>
+            <label>Organization
+                <select id="org"></select>
             </label>
+            <div class="row">
+                <button onclick="goToLogin('user')">Member login</button>
+                <button onclick="goToLogin('admin')">Admin login</button>
+            </div>
         </div>
-
-        <div id="continueBox" class="callout" hidden></div>
-
-        <div class="role-grid">
-            <button class="role-card" type="button" data-role="user">
-                <div class="icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
-                </div>
-                <h2>Member</h2>
-                <p>See your upcoming reservations and book rooms or equipment.</p>
-            </button>
-            <button class="role-card" type="button" data-role="admin">
-                <div class="icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
-                </div>
-                <h2>Administrator</h2>
-                <p>Create member accounts, manage resources and customize your portal.</p>
-            </button>
-        </div>
-
-
-
     </main>
-    
 </body>
 </html>
