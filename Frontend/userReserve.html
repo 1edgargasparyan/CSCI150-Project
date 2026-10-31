@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservations</title>
+</head>
+<body>
+    <header></header>
+    <main>
+        <h1>Make a reservation</h1>
+
+        <div class="card">
+        <h2>Rooms and equipment</h2>
+        <div class="table-wrap">
+            <table>
+            <thead><tr><th>Name</th><th>Type</th><th>Hours</th><th>Right now</th><th></th></tr></thead>
+            <tbody id="resources"></tbody>
+            </table>
+        </div>
+        </div>
+
+        <div class="card" id="bookingCard">
+        <h2>Reserve</h2>
+        <div class="row">
+            <label>Resource <select id="resource" onchange="showBookedTimes()"></select></label>
+            <label>Date <input id="date" type="date" onchange="showBookedTimes()"></label>
+        </div>
+        <div class="row">
+            <label>Start time <input id="start" type="time"></label>
+            <label>End time <input id="end" type="time"></label>
+        </div>
+        <button onclick="handleReserve()">Reserve</button>
+        <p id="msg" class="msg"></p>
+
+        <h2 style="margin-top:16px">Already booked that day</h2>
+        <ul id="booked" class="muted"></ul>
+        </div>
+    </main>
+    
+</body>
+</html>
