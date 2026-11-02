@@ -1,0 +1,366 @@
+// Include Required Libraries
+#include <Wire.h> // I2C hardware library for clock on pin 21 and 22
+#include <Adafruit_GFX.h> // Graphics engine
+#include <Adafruit_SSD1306.h> // Driver to translate graphics to I2C commands
+#include <Adafruit_PN532.h> // Driver for the RFID module
+#include <WiFi.h> // Enables 2.4 Ghz WiFI
+#include <WiFiClientSecure.h> // Loads cryptography to handle TLS 1.3 encryption
+#include <HTTPClient.h> // Packages data into standard formats to send to backend
+
+
+// Hardware Pins
+#define LED_GREEN_PIN 25 // Defines the green LED pin as 25
+#define LED_RED_PIN   26 // Defines the red LED pin as 26
+#define BUZZER_PIN    18 // Defines the buzzer pin as 18
+#define TOUCH_PIN     4  // Defines the capacitive touch pin as 4
+
+
+// Screen Settings
+#define SCREEN_WIDTH 128 // OLED display pixel width
+#define SCREEN_HEIGHT 64 // OLED display pixel height
+
+
+// Create the screen and NFC reader objects
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1); // Create display object
+Adafruit_PN532 nfc(-1, -1); // Create RFID object with no interrupts
+
+
+// Network & System Variables
+const char* WIFI_SSID = "bulldogs"; // WiFi SSID
+const char* WIFI_PASS = ""; // WiFi Password
+const String READER_ID = "ESP32_01"; // Reader ID
+const char* API_URL = "weburl"; // Database URL
+const char* API_KEY = "webkey"; // Backend AUTH key
+
+
+// Track whether we are checking out a room or equipment
+enum SystemMode { MODE_ROOM, MODE_EQUIPMENT };
+SystemMode currentMode = MODE_ROOM;
+
+
+// Touch sensor sensitivity threshold
+const int TOUCH_THRESHOLD = 200; // 70 in air but below 30 at touch
+
+
+// Function Declarations
+void updateDisplay(String mainMsg, String subMsg);
+void playSuccessBeep();
+void playDeniedBeep();
+void handleTouchToggle();
+void handleRFIDScan();
+String scanCardNonBlocking(unsigned long timeoutMillis);
+
+
+// Setup runs when ESP turns on
+void setup()
+{
+  Serial.begin(115200); // Default speed
+ 
+  // Set pins to output mode
+  pinMode(LED_GREEN_PIN, OUTPUT);
+  pinMode(LED_RED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+
+  // Start the I2C clock/bus for the screen and reader
+  Wire.begin();
+ 
+  // Turn on the screen
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) // Initialize display at address 0x3C
+  {
+    while(true); // Stop if screen fails
+  }
+ 
+  // Turn on the NFC reader
+  nfc.begin();
+  if (!nfc.getFirmwareVersion()) // Ping the PN532
+  {
+    updateDisplay("ERROR", "PN532 Init Failed");
+    while(true); // Stop if reader fails
+  }
+  nfc.SAMConfig(); // Secure Access Module reading mode activation
+
+  // Connect to Wi-Fi
+  updateDisplay("BOOTING...", "Connecting to WiFi");
+  WiFi.begin(WIFI_SSID, WIFI_PASS); // Hands login credentials to signal
+  while (WiFi.status() != WL_CONNECTED)  // Wait until WiFi connects
+  {
+    delay(500);
+  }
+ 
+  // Show the starting screen
+  updateDisplay("Tap to Check In", "Room Access Active");
+}
+
+
+// Main loop
+void loop()
+{
+  handleTouchToggle(); // Check if the user touched the mode wire
+  handleRFIDScan();    // Check if a card is near the reader
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    updateDisplay("NO NETWORK", "Reconnecting...");
+    WiFi.disconnect();
+    WiFi.reconnect();
+   
+    while (WiFi.status() != WL_CONNECTED)  
+    {
+      delay(500);
+    }
+   
+    if (currentMode == MODE_ROOM)
+    {
+      updateDisplay("Tap to Check In", "Room Access Active");
+    }
+    else
+    {
+      updateDisplay("Tap ID card", "Equipment Station");
+    }
+  }
+
+  delay(50); // Short delay for stability
+}
+
+
+// Mode Switch Logic
+void handleTouchToggle()
+{
+  static unsigned long lastTouchTime = 0;
+  static bool wasTouched = false;
+ 
+  // Read the bare jumper wire
+  int touchValue = touchRead(TOUCH_PIN);
+
+  // If touched and 400 milliseconds have passed (debouncing)
+  if (touchValue < TOUCH_THRESHOLD && !wasTouched && (millis() - lastTouchTime > 400))
+  {
+    wasTouched = true;
+    lastTouchTime = millis();
+
+    // Flip the mode
+    if (currentMode == MODE_ROOM)
+    {
+      currentMode = MODE_EQUIPMENT;
+      updateDisplay("Tap ID card", "Equipment Station");
+    }
+    else
+    {
+      currentMode = MODE_ROOM;
+      updateDisplay("Tap to Check In", "Room Access Active");
+    }
+   
+    tone(BUZZER_PIN, 2000, 50); // Play a click sound
+  }
+  else if (touchValue >= TOUCH_THRESHOLD)
+  {
+    wasTouched = false; // Reset when finger is removed
+  }
+}
+
+
+// RFID Scanning
+void handleRFIDScan()
+{
+  // Wait for a user to tap their ID card
+  String userUID = scanCardNonBlocking(100); // Scan card with 100ms timeout
+  String equipmentUID = "";
+  if (userUID == "")
+  {
+    return; // Exit if no card is found
+  }
+
+  tone(BUZZER_PIN, 3000, 20); // Play click sound
+
+  // Equipment Scan Logic
+  if (currentMode == MODE_EQUIPMENT)
+  {
+    unsigned long scanStartTime = millis();
+    bool equipmentScanned = false;
+
+
+    // Give the user 10 seconds to scan the equipment tag
+    while (millis() - scanStartTime < 10000)
+    {
+      // Calculate how many seconds are left
+      int timeRemaining = 10 - ((millis() - scanStartTime) / 1000);
+      updateDisplay("Tap equipment", "Timeout in: " + String(timeRemaining) + "s");
+
+      // Try to read a second tag
+      equipmentUID = scanCardNonBlocking(200);
+     
+      // Check if tag scanned and it is not the UID
+      if (equipmentUID != "" && equipmentUID != userUID)
+      {
+        equipmentScanned = true;
+        tone(BUZZER_PIN, 3000, 20);
+        break; // Stop the timer loop
+      }
+    }
+
+    // If 10 seconds passed and no equipment was scanned
+    if (!equipmentScanned)
+    {
+      updateDisplay("Timed out", "Start again");
+      delay(2000);
+      updateDisplay("Tap ID card", "Equipment Station");
+      return; // Cancel checkout
+    }
+  }
+
+  // Process the Data
+  updateDisplay("PROCESSING...", "Sending Data...");
+ 
+  bool backendApproved = sendBackendRequest(userUID, equipmentUID, currentMode);
+
+  if (backendApproved)
+  {
+    // Success Workflow
+    digitalWrite(LED_GREEN_PIN, HIGH);
+    playSuccessBeep();
+   
+    if (currentMode == MODE_ROOM)
+    {
+      updateDisplay("Checked in", "Success");
+    }
+    else
+    {
+      updateDisplay("Checked out", "Success");
+    }
+   
+    delay(2000); // Leave screen on for 2 seconds
+    digitalWrite(LED_GREEN_PIN, LOW);
+  }
+  else
+  {
+    // Denied Workflow
+    digitalWrite(LED_RED_PIN, HIGH);
+    playDeniedBeep();
+    updateDisplay("Not authorized", "Access Denied");
+   
+    delay(2000); // Leave screen on for 2 seconds
+    digitalWrite(LED_RED_PIN, LOW);
+  }
+
+  // Return to the starting screen
+  if (currentMode == MODE_ROOM)
+  {
+    updateDisplay("Tap to Check In", "Room Access Active");
+  }
+  else
+  {
+    updateDisplay("Tap ID card", "Equipment Station");
+  }
+}
+
+
+// Read card and return a string
+String scanCardNonBlocking(unsigned long timeoutMillis)
+{
+  uint8_t uid[7]; // MIFARE UID length
+  uint8_t uidLength;
+ 
+  // Ask PN532 coil if it sees a card
+  if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, timeoutMillis))
+  {
+    String uidString = "";
+   
+    // Convert the raw bytes into a hexadecimal string
+    for (uint8_t i = 0; i < uidLength; i++) // Cycle through each byte
+    {
+      if (uid[i] < 0x10) uidString += "0"; // Include leading 0 if less than 16
+      uidString += String(uid[i], HEX); // Creates the string
+    }
+   
+    uidString.toUpperCase(); // Sets all hex as uppercase
+    return uidString;
+  }
+ 
+  return ""; // Return empty if nothing is found
+}
+
+
+bool sendBackendRequest(String userUID, String equipmentUID, SystemMode mode)
+{
+  WiFiClientSecure client;
+ 
+  client.setInsecure();
+  HTTPClient http;
+ 
+  // Initialize the target URL
+  http.begin(client, API_URL);
+ 
+  // Attach HTTP Headers
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("apikey", API_KEY);
+  http.addHeader("Authorization", String("Bearer ") + API_KEY);
+
+  // Construct the JSON Payload physically
+  String modeStr = (mode == MODE_ROOM) ? "room" : "equipment";
+ 
+  String payload = "{\"reader_id\":\"" + READER_ID + "\",";
+  payload += "\"user_uid\":\"" + userUID + "\",";
+  payload += "\"equipment_uid\":\"" + equipmentUID + "\",";
+  payload += "\"mode\":\"" + modeStr + "\"}";
+
+  // Send the POST request and capture the server's response code
+  int httpResponseCode = http.POST(payload);
+ 
+  Serial.print("Server Response: ");
+  Serial.println(httpResponseCode);
+
+  // Free up the ESP32's RAM
+  http.end();
+
+  // 200 (OK) or 201 (Created) means the backend authorized the transaction
+  return (httpResponseCode == 200 || httpResponseCode == 201);
+}
+
+
+// OLED and Buzzer Controls
+void updateDisplay(String mainMsg, String subMsg)
+{
+  display.clearDisplay();
+ 
+  // Draw the top banner
+  display.fillRect(0, 0, SCREEN_WIDTH, 16, SSD1306_WHITE); // Create white rectangle border
+  display.setTextColor(SSD1306_BLACK); // Black text
+  display.setTextSize(1);
+  display.setCursor(5, 4);
+  if (currentMode == MODE_ROOM)
+  {
+    display.print(">>> ROOM ACCESS <<<");
+  }
+  else
+  {
+    display.print(">> EQUIPMENT <<");
+  }
+
+  // Draw the main text
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 24);
+  display.println(mainMsg);
+
+  // Draw the bottom text
+  display.setCursor(0, 42);
+  display.println(subMsg);
+
+  display.display(); // Push it to the screen
+}
+
+
+void playSuccessBeep()
+{
+  tone(BUZZER_PIN, 2500, 150); // One short high-pitched tone
+}
+
+
+void playDeniedBeep()
+{
+  // Two low tones
+  tone(BUZZER_PIN, 300, 200);
+  delay(250);
+  tone(BUZZER_PIN, 300, 200);
+}
