@@ -10,7 +10,7 @@
     <header></header>
     <main>
         <h1 id="welcome">Welcome</h1>
-        <p><button onclick="location.href='user-reservations.html'">Make a reservation</button></p>
+        <p><button onclick="location.href='userReserve.html'">Make a reservation</button></p>
 
         <div class="card">
         <h2>My upcoming reservations</h2>
@@ -23,6 +23,41 @@
         </div>
     </main>
 
+    <script src="ui.js"></script>
+    <script src="data.js"></script>
+    <script>
+        let session;
+
+        async function start() {
+        session = await requireLogin('user');
+        showHeader(session, 'user-dashboard.html');
+        document.getElementById('welcome').textContent = 'Welcome, ' + session.user.name;
+        await showReservations();
+        }
+
+        // Draw this member's upcoming reservations
+        async function showReservations() {
+        const mine = await listReservations({ orgId: session.org.id, userId: session.user.id });
+        const upcoming = mine.filter(isUpcoming);
+        document.getElementById('reservations').innerHTML = upcoming.length
+            ? upcoming.map(r => `
+                <tr>
+                <td>${formatDate(r.date)}</td>
+                <td>${formatTime(r.start_time)} – ${formatTime(r.end_time)}${isNow(r) ? ' <strong>(now)</strong>' : ''}</td>
+                <td>${esc(r.resourceName)}</td>
+                <td><button class="danger small" onclick="handleCancel('${r.id}')">Cancel</button></td>
+                </tr>`).join('')
+            : '<tr><td colspan="4" class="muted">You have no upcoming reservations.</td></tr>';
+        }
+
+        async function handleCancel(reservationId) {
+        if (!confirm('Cancel this reservation? The time will open up for others.')) return;
+        await cancelReservation(reservationId);
+        await showReservations();
+        }
+
+        start();
+    </script>
 
 </body>
 </html>

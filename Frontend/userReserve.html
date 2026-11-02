@@ -37,6 +37,85 @@
         <ul id="booked" class="muted"></ul>
         </div>
     </main>
+
+    <script src="ui.js"></script>
+    <script src="data.js"></script>
+    <script>
+        let session;
+        let resources = [];
+
+        async function start() {
+        session = await requireLogin('user');
+        showHeader(session, 'user-reservations.html');
+        document.getElementById('date').value = today();
+        document.getElementById('date').min = today();
+        await showResources();
+        await showBookedTimes();
+        }
+
+        // Draw the resources table and fill the Resource dropdown
+        async function showResources() {
+        resources = await listResources(session.org.id);
+        const reservations = await listReservations({ orgId: session.org.id, date: today() });
+
+        document.getElementById('resources').innerHTML = resources.map(r => {
+            const status = resourceStatus(r, reservations);
+            return `
+            <tr>
+                <td>${esc(r.name)}</td>
+                <td>${r.type === 'room' ? 'Room' : 'Equipment'}</td>
+                <td>${formatTime(r.open_time)} – ${formatTime(r.close_time)}</td>
+                <td class="${status.cssClass}">${status.text}</td>
+                <td>${r.status === 'available' ? `<button class="small" onclick="handleChoose('${r.id}')">Choose</button>` : ''}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="5" class="muted">No resources yet.</td></tr>';
+
+        // Only available resources can be picked in the form
+        const select = document.getElementById('resource');
+        const chosen = select.value;
+        select.innerHTML = resources.filter(r => r.status === 'available')
+            .map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+        if (chosen) select.value = chosen;
+        }
+
+        // "Choose" button in the table → select that resource in the form
+        async function handleChoose(resourceId) {
+        document.getElementById('resource').value = resourceId;
+        await showBookedTimes();
+        document.getElementById('bookingCard').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // List the times already taken for the chosen resource and date
+        async function showBookedTimes() {
+        const resourceId = document.getElementById('resource').value;
+        const date = document.getElementById('date').value;
+        const list = document.getElementById('booked');
+        if (!resourceId || !date) { list.innerHTML = ''; return; }
+        const booked = await listReservations({ orgId: session.org.id, resourceId, date });
+        list.innerHTML = booked.length
+            ? booked.map(r => `<li>${formatTime(r.start_time)} – ${formatTime(r.end_time)}${r.user_id === session.user.id ? ' (yours)' : ''}</li>`).join('')
+            : '<li>Nothing booked yet.</li>';
+        }
+
+        async function handleReserve() {
+        const resourceId = document.getElementById('resource').value;
+        const date = document.getElementById('date').value;
+        const start = document.getElementById('start').value;
+        const end = document.getElementById('end').value;
+        try {
+            await reserve(session.org.id, session.user.id, resourceId, date, start, end);
+            showMessage('msg', 'Reserved! You can see it on your Home page.', false);
+            document.getElementById('start').value = '';
+            document.getElementById('end').value = '';
+        } catch (error) {
+            showMessage('msg', error.message, true);
+        }
+        await showResources();
+        await showBookedTimes();
+        }
+
+        start();
+    </script>
     
 </body>
 </html>

@@ -21,5 +21,31 @@
             </div>
         </div>
     </main>
+
+<script src="ui.js"></script>
+    <script src="data.js"></script>
+    <script>
+        // Fill the organization dropdown
+        async function start() {
+        const orgs = await getOrgs();
+        document.getElementById('org').innerHTML = orgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+        // The demo box only applies to the demo version (data.js)
+        if (typeof resetDemo !== 'function') document.getElementById('demoBox').hidden = true;
+        }
+
+        // Go to the login page for the chosen organization and role
+        function goToLogin(role) {
+        const orgId = document.getElementById('org').value;
+        location.href = `login.html?org=${encodeURIComponent(orgId)}&role=${role}`;
+        }
+
+        async function handleReset() {
+        await resetDemo();
+        location.reload();
+        }
+
+        start();
+    </script>
+
 </body>
 </html>

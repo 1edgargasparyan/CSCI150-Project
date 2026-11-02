@@ -24,5 +24,38 @@
         <a href="index.html">← Back</a>
     </main>
 
+    <script src="ui.js"></script>
+    <script src="data.js"></script>
+    <script>
+        // The organization and role come from the link on the start page: login.html?org=...&role=...
+        const params = new URLSearchParams(location.search);
+        const orgId = params.get('org');
+        const role = params.get('role') === 'admin' ? 'admin' : 'user';
+
+        // Show the organization's name, logo and color
+        async function start() {
+        const org = await getOrg(orgId);
+        if (!org) { location.href = 'index.html'; return; }
+        applyBranding(org);
+        document.getElementById('orgTitle').textContent = org.title || org.name;
+        document.getElementById('roleText').textContent = role === 'admin' ? 'Admin sign in' : 'Member sign in';
+        if (org.logo) document.getElementById('logo').innerHTML = `<img src="${esc(org.logo)}" alt="logo" style="max-height:60px">`;
+        }
+
+        // Check the login, then go to the right dashboard
+        async function handleLogin() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        try {
+            await login(orgId, username, password, role);
+            location.href = role === 'admin' ? 'admin-dashboard.html' : 'user-dashboard.html';
+        } catch (error) {
+            showMessage('msg', error.message, true);
+        }
+        }
+
+        start();
+    </script>
+
 </body>
 </html>

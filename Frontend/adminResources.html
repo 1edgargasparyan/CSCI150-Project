@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <main>
+        <h1>Resources</h1>
+
+        <div class="card">
+        <h2 id="formTitle">Add a resource</h2>
+        <div class="row">
+            <label>Name <input id="resName" placeholder="e.g. Study Room C"></label>
+            <label>Type
+            <select id="resType">
+                <option value="room">Room</option>
+                <option value="equipment">Equipment</option>
+            </select>
+            </label>
+        </div>
+        <div class="row">
+            <label>Available from <input id="resOpen" type="time" value="08:00"></label>
+            <label>Available until <input id="resClose" type="time" value="18:00"></label>
+            <label>Status
+            <select id="resStatus">
+                <option value="available">Available</option>
+                <option value="unavailable">Unavailable</option>
+            </select>
+            </label>
+        </div>
+        <button id="saveBtn" onclick="handleSaveResource()">Add resource</button>
+        <button id="cancelEditBtn" class="secondary" onclick="clearForm()" hidden>Cancel edit</button>
+        <p id="resMsg" class="msg"></p>
+        </div>
+
+        <div class="card">
+        <h2>Rooms and equipment</h2>
+        <div class="table-wrap">
+            <table>
+            <thead><tr><th>Name</th><th>Type</th><th>Hours</th><th>Status now</th><th>Current holder</th><th></th></tr></thead>
+            <tbody id="resources"></tbody>
+            </table>
+        </div>
+        </div>
+
+        <div class="card">
+        <h2>Upcoming reservations</h2>
+        <div class="table-wrap">
+            <table>
+            <thead><tr><th>Date</th><th>Time</th><th>Resource</th><th>Reserved by</th><th></th></tr></thead>
+            <tbody id="reservations"></tbody>
+            </table>
+        </div>
+        </div>
+    </main>
+
+    <script src="ui.js"></script>
+    <script src="data.js"></script>
+    <script>
+        let session;
+        let resources = [];
+        let editingId = null;   // id of the resource being edited, or null when adding
+
+        async function start() {
+        session = await requireLogin('admin');
+        showHeader(session, 'adminResources.html');
+        await showAll();
+        }
+
+        // Draw both tables
+        async function showAll() {
+        resources = await listResources(session.org.id);
+        const reservations = await listReservations({ orgId: session.org.id });
+
+        document.getElementById('resources').innerHTML = resources.length
+            ? resources.map(r => {
+                const status = resourceStatus(r, reservations);
+                return `
+                <tr>
+                    <td>${esc(r.name)}</td>
+                    <td>${r.type === 'room' ? 'Room' : 'Equipment'}</td>
+                    <td>${formatTime(r.open_time)} – ${formatTime(r.close_time)}</td>
+                    <td class="${status.cssClass}">${status.text}</td>
+                    <td>${esc(status.holder) || '—'}</td>
+                    <td>
+                    <button class="secondary small" onclick="handleEdit('${r.id}')">Edit</button>
+                    <button class="danger small" onclick="handleDelete('${r.id}')">Delete</button>
+                    </td>
+                </tr>`;
+            }).join('')
+            : '<tr><td colspan="6" class="muted">No resources yet. Add one above.</td></tr>';
+
+        const upcoming = reservations.filter(isUpcoming);
+        document.getElementById('reservations').innerHTML = upcoming.length
+            ? upcoming.map(r => `
+                <tr>
+                <td>${formatDate(r.date)}</td>
+                <td>${formatTime(r.start_time)} – ${formatTime(r.end_time)}</td>
+                <td>${esc(r.resourceName)}</td>
+                <td>${esc(r.userName)}</td>
+                <td><button class="danger small" onclick="handleCancel('${r.id}')">Cancel</button></td>
+                </tr>`).join('')
+            : '<tr><td colspan="5" class="muted">No upcoming reservations.</td></tr>';
+        }
+
+        // Add a new resource, or save changes to the one being edited
+        async function handleSaveResource() {
+        try {
+            await saveResource(session.org.id, {
+            id: editingId,
+            name: document.getElementById('resName').value,
+            type: document.getElementById('resType').value,
+            open_time: document.getElementById('resOpen').value,
+            close_time: document.getElementById('resClose').value,
+            status: document.getElementById('resStatus').value
+            });
+            const wasEditing = editingId;
+            clearForm();
+            showMessage('resMsg', wasEditing ? 'Changes saved.' : 'Resource added.', false);
+            await showAll();
+        } catch (error) {
+            showMessage('resMsg', error.message, true);
+        }
+        }
+
+        // Load a resource into the form so it can be changed
+        function handleEdit(resourceId) {
+        const r = resources.find(x => x.id === resourceId);
+        editingId = r.id;
+        document.getElementById('resName').value = r.name;
+        document.getElementById('resType').value = r.type;
+        document.getElementById('resOpen').value = r.open_time;
+        document.getElementById('resClose').value = r.close_time;
+        document.getElementById('resStatus').value = r.status;
+        document.getElementById('formTitle').textContent = 'Edit ' + r.name;
+        document.getElementById('saveBtn').textContent = 'Save changes';
+        document.getElementById('cancelEditBtn').hidden = false;
+        showMessage('resMsg', '', false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Put the form back to "Add a resource"
+        function clearForm() {
+        editingId = null;
+        document.getElementById('resName').value = '';
+        document.getElementById('resType').value = 'room';
+        document.getElementById('resOpen').value = '08:00';
+        document.getElementById('resClose').value = '18:00';
+        document.getElementById('resStatus').value = 'available';
+        document.getElementById('formTitle').textContent = 'Add a resource';
+        document.getElementById('saveBtn').textContent = 'Add resource';
+        document.getElementById('cancelEditBtn').hidden = true;
+        showMessage('resMsg', '', false);
+        }
+
+        async function handleDelete(resourceId) {
+        if (!confirm('Delete this resource? Its reservations will be cancelled.')) return;
+        await removeResource(resourceId);
+        if (editingId === resourceId) clearForm();
+        await showAll();
+        }
+
+        async function handleCancel(reservationId) {
+        if (!confirm('Cancel this reservation?')) return;
+        await cancelReservation(reservationId);
+        await showAll();
+        }
+
+        start();
+    </script>
+
+    
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <main>
+        <h1>Admin dashboard</h1>
+
+        <div class="card">
+        <h2>Add a member</h2>
+        <div class="row">
+            <label>Full name <input id="name"></label>
+            <label>Username <input id="username"></label>
+            <label>Password <input id="password"></label>
+        </div>
+        <button onclick="handleAddMember()">Add member</button>
+        <p id="memberMsg" class="msg"></p>
+        </div>
+
+        <div class="card">
+        <h2>Members</h2>
+        <div class="table-wrap">
+            <table>
+            <thead><tr><th>Name</th><th>Username</th><th></th></tr></thead>
+            <tbody id="members"></tbody>
+            </table>
+        </div>
+        </div>
+
+        <div class="card">
+        <h2>Member portal branding</h2>
+        <label>Header title <input id="title"></label>
+        <div class="row">
+            <label>Brand color <input id="color" type="color"></label>
+            <label>Logo image <input id="logo" type="file" accept="image/*" onchange="handleLogoPicked()"></label>
+        </div>
+        <p class="muted" id="logoText"></p>
+        <button onclick="handleSaveBranding()">Save branding</button>
+        <button class="secondary" onclick="handleRemoveLogo()">Remove logo</button>
+        <p id="brandMsg" class="msg"></p>
+        </div>
+    </main>
+
+    <script src="ui.js"></script>
+    <script src="data.js"></script>
+    <script>
+        let session;       // { user, org } for the logged-in admin
+        let logo = '';     // the logo image (as text) that will be saved
+
+        async function start() {
+        session = await requireLogin('admin');
+        showHeader(session, 'adminDashboard.html');
+        // Put the current branding into the form
+        document.getElementById('title').value = session.org.title || '';
+        document.getElementById('color').value = session.org.color || '#2563eb';
+        logo = session.org.logo || '';
+        document.getElementById('logoText').textContent = logo ? 'A logo is set.' : 'No logo yet.';
+        await showMembers();
+        }
+
+        // Draw the members table
+        async function showMembers() {
+        const members = await listUsers(session.org.id);
+        document.getElementById('members').innerHTML = members.length
+            ? members.map(m => `
+                <tr>
+                <td>${esc(m.name)}</td>
+                <td>${esc(m.username)}</td>
+                <td><button class="danger small" onclick="handleRemoveMember('${m.id}')">Remove</button></td>
+                </tr>`).join('')
+            : '<tr><td colspan="3" class="muted">No members yet.</td></tr>';
+        }
+
+        async function handleAddMember() {
+        const name = document.getElementById('name').value;
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        try {
+            const member = await addUser(session.org.id, name, username, password);
+            showMessage('memberMsg', `Member added. Give ${member.name} the username "${member.username}" and password "${password}".`, false);
+            document.getElementById('name').value = '';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            await showMembers();
+        } catch (error) {
+            showMessage('memberMsg', error.message, true);
+        }
+        }
+
+        async function handleRemoveMember(userId) {
+        if (!confirm('Remove this member? Their reservations will be cancelled.')) return;
+        try {
+            await removeUser(userId);
+            await showMembers();
+        } catch (error) {
+            showMessage('memberMsg', error.message, true);
+        }
+        }
+
+        // Read the chosen image file into text so it can be saved with the branding
+        function handleLogoPicked() {
+        const file = document.getElementById('logo').files[0];
+        if (!file) return;
+        if (file.size > 200 * 1024) { showMessage('brandMsg', 'Please pick an image under 200 KB.', true); return; }
+        const reader = new FileReader();
+        reader.onload = () => {
+            logo = reader.result;
+            document.getElementById('logoText').textContent = 'New logo chosen. Click Save branding.';
+        };
+        reader.readAsDataURL(file);
+        }
+
+        function handleRemoveLogo() {
+        logo = '';
+        document.getElementById('logo').value = '';
+        document.getElementById('logoText').textContent = 'Logo will be removed when you click Save branding.';
+        }
+
+        async function handleSaveBranding() {
+        try {
+            session.org = await saveBranding(session.org.id, {
+            title: document.getElementById('title').value.trim(),
+            color: document.getElementById('color').value,
+            logo: logo
+            });
+            showHeader(session, 'adminDashboard.html'); // redraw the header with the new look
+            document.getElementById('logoText').textContent = logo ? 'A logo is set.' : 'No logo yet.';
+            showMessage('brandMsg', 'Branding saved. Members will see it next time they open a page.', false);
+        } catch (error) {
+            showMessage('brandMsg', error.message, true);
+        }
+        }
+
+        start();
+    </script>
+
+</body>
+</html>
