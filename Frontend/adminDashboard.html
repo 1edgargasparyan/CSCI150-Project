@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header></header>
@@ -11,21 +12,26 @@
         <h1>Admin dashboard</h1>
 
         <div class="card">
-        <h2>Add a member</h2>
+        <h2>Add a person</h2>
         <div class="row">
             <label>Full name <input id="name"></label>
-            <label>Username <input id="username"></label>
-            <label>Password <input id="password"></label>
+            <label>Google email <input id="email" type="email" placeholder="name@gmail.com"></label>
+            <label>Role
+            <select id="role">
+                <option value="user">Member</option>
+                <option value="admin">Admin</option>
+            </select>
+            </label>
         </div>
-        <button onclick="handleAddMember()">Add member</button>
+        <button onclick="handleAddMember()">Add</button>
         <p id="memberMsg" class="msg"></p>
         </div>
 
         <div class="card">
-        <h2>Members</h2>
+        <h2>People</h2>
         <div class="table-wrap">
             <table>
-            <thead><tr><th>Name</th><th>Username</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Google email</th><th>Role</th><th></th></tr></thead>
             <tbody id="members"></tbody>
             </table>
         </div>
@@ -46,7 +52,8 @@
     </main>
 
     <script src="ui.js"></script>
-    <script src="data.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="data-supabase.js"></script>
     <script>
         let session;       // { user, org } for the logged-in admin
         let logo = '';     // the logo image (as text) that will be saved
@@ -62,29 +69,28 @@
         await showMembers();
         }
 
-        // Draw the members table
+        // Draw the people table (you can't remove yourself)
         async function showMembers() {
         const members = await listUsers(session.org.id);
-        document.getElementById('members').innerHTML = members.length
-            ? members.map(m => `
+        document.getElementById('members').innerHTML = members.map(m => `
                 <tr>
-                <td>${esc(m.name)}</td>
-                <td>${esc(m.username)}</td>
-                <td><button class="danger small" onclick="handleRemoveMember('${m.id}')">Remove</button></td>
-                </tr>`).join('')
-            : '<tr><td colspan="3" class="muted">No members yet.</td></tr>';
+                <td>${esc(m.name)}${m.id === session.user.id ? ' (you)' : ''}</td>
+                <td>${esc(m.email)}</td>
+                <td>${m.role === 'admin' ? 'Admin' : 'Member'}</td>
+                <td>${m.id === session.user.id ? '' : `<button class="danger small" onclick="handleRemoveMember('${m.id}')">Remove</button>`}</td>
+                </tr>`).join('');
         }
 
         async function handleAddMember() {
         const name = document.getElementById('name').value;
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
+        const email = document.getElementById('email').value;
+        const role = document.getElementById('role').value;
         try {
-            const member = await addUser(session.org.id, name, username, password);
-            showMessage('memberMsg', `Member added. Give ${member.name} the username "${member.username}" and password "${password}".`, false);
+            const member = await addUser(session.org.id, name, email, role);
+            const loginName = member.role === 'admin' ? 'Admin login' : 'Member login';
+            showMessage('memberMsg', `Added. ${member.name} can now use ${loginName} and sign in with Google as ${member.email}.`, false);
             document.getElementById('name').value = '';
-            document.getElementById('username').value = '';
-            document.getElementById('password').value = '';
+            document.getElementById('email').value = '';
             await showMembers();
         } catch (error) {
             showMessage('memberMsg', error.message, true);
@@ -92,7 +98,7 @@
         }
 
         async function handleRemoveMember(userId) {
-        if (!confirm('Remove this member? Their reservations will be cancelled.')) return;
+        if (!confirm('Remove this person? Their reservations will be cancelled.')) return;
         try {
             await removeUser(userId);
             await showMembers();

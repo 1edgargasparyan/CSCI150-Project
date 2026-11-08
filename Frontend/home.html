@@ -20,28 +20,27 @@
                 <button onclick="goToLogin('admin')">Admin login</button>
             </div>
         </div>
+        <div class="card">
+            <h2>New organization?</h2>
+            <p class="muted">Set up your organization and become its admin.</p>
+            <button class="secondary" onclick="location.href='createOrg.html'">Create an organization</button>
+        </div>
     </main>
 
 <script src="ui.js"></script>
-    <script src="data.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="data-supabase.js"></script>
     <script>
         // Fill the organization dropdown
         async function start() {
         const orgs = await getOrgs();
         document.getElementById('org').innerHTML = orgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
-        // The demo box only applies to the demo version (data.js)
-        if (typeof resetDemo !== 'function') document.getElementById('demoBox').hidden = true;
         }
 
         // Go to the login page for the chosen organization and role
         function goToLogin(role) {
         const orgId = document.getElementById('org').value;
         location.href = `login.html?org=${encodeURIComponent(orgId)}&role=${role}`;
-        }
-
-        async function handleReset() {
-        await resetDemo();
-        location.reload();
         }
 
         start();

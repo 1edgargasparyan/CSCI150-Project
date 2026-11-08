@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create an organization · Radio RNC</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="narrow">
+        <div class="card">
+        <h1>Create an organization</h1>
+
+        <!-- Shown first: the creator signs in with Google and becomes the admin -->
+        <div id="signInPart" hidden>
+            <p class="muted">Sign in with the Google account you'll use as this organization's admin.</p>
+            <button onclick="handleSignIn()">Sign in with Google</button>
+        </div>
+
+        <!-- Shown if that Google account is already in an organization -->
+        <div id="alreadyPart" hidden>
+            <p id="alreadyText"></p>
+            <button onclick="handleSignOut()" class="secondary">Use a different Google account</button>
+        </div>
+
+        <!-- Shown after signing in: the organization details -->
+        <div id="formPart" hidden>
+            <p class="muted">Signed in as <strong id="emailText"></strong>. You'll be this organization's admin.
+            <a href="#" onclick="handleSignOut(); return false;">Not you?</a></p>
+            <label>Organization name <input id="orgName" placeholder="e.g. Riverside Library"></label>
+            <label>Header title <input id="orgTitle" placeholder="e.g. Riverside Library Reservations"></label>
+            <label>Your name <input id="adminName"></label>
+            <div class="row">
+                <label>Brand color <input id="orgColor" type="color" value="#2563eb"></label>
+                <label>Logo image <input id="orgLogo" type="file" accept="image/*" onchange="handleLogoPicked()"></label>
+            </div>
+            <p class="muted" id="logoText">No logo chosen (optional).</p>
+            <button onclick="handleCreate()">Create organization</button>
+        </div>
+
+        <p id="msg" class="msg"></p>
+        </div>
+        <a href="home.html">← Back</a>
+    </main>
+
+    <script src="ui.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="data-supabase.js"></script>
+    <script>
+        let logo = '';   // the chosen logo image (as text)
+
+        // Decide which part of the page to show
+        async function start() {
+            const email = await getGoogleEmail();
+            if (!email) {
+                document.getElementById('signInPart').hidden = false;
+                return;
+            }
+            const session = await getSession();
+            if (session) {
+                // This Google account already belongs to an organization
+                document.getElementById('alreadyText').innerHTML =
+                    `${esc(email)} already belongs to <strong>${esc(session.org.name)}</strong>. ` +
+                    `<a href="${session.user.role === 'admin' ? 'adminDashboard.html' : 'userDashboard.html'}">Go to your dashboard</a>`;
+                document.getElementById('alreadyPart').hidden = false;
+                return;
+            }
+            document.getElementById('emailText').textContent = email;
+            document.getElementById('formPart').hidden = false;
+            applyBranding({ color: document.getElementById('orgColor').value });
+        }
+
+        // Sign in with Google, then come back to this page
+        async function handleSignIn() {
+            try {
+                await signInWithGoogle('createOrg.html');
+            } catch (error) {
+                showMessage('msg', error.message, true);
+            }
+        }
+
+        async function handleSignOut() {
+            await signOutOnly();
+            location.reload();
+        }
+
+        // Preview the brand color on this page as it's picked
+        document.getElementById('orgColor').addEventListener('input', e => applyBranding({ color: e.target.value }));
+
+        // Read the chosen image file into text so it can be saved with the organization
+        function handleLogoPicked() {
+            const file = document.getElementById('orgLogo').files[0];
+            if (!file) return;
+            if (file.size > 200 * 1024) { showMessage('msg', 'Please pick an image under 200 KB.', true); return; }
+            const reader = new FileReader();
+            reader.onload = () => {
+                logo = reader.result;
+                document.getElementById('logoText').textContent = 'Logo chosen.';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Create the organization, then go straight to its admin dashboard
+        async function handleCreate() {
+            try {
+                await createOrganization({
+                    name: document.getElementById('orgName').value,
+                    title: document.getElementById('orgTitle').value,
+                    color: document.getElementById('orgColor').value,
+                    logo: logo,
+                    adminName: document.getElementById('adminName').value
+                });
+                location.href = 'adminDashboard.html';
+            } catch (error) {
+                showMessage('msg', error.message, true);
+            }
+        }
+
+        start();
+    </script>
+</body>
+</html>

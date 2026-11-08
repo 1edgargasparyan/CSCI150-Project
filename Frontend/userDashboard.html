@@ -24,13 +24,14 @@
     </main>
 
     <script src="ui.js"></script>
-    <script src="data.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="data-supabase.js"></script>
     <script>
         let session;
 
         async function start() {
         session = await requireLogin('user');
-        showHeader(session, 'user-dashboard.html');
+        showHeader(session, 'userDashboard.html');
         document.getElementById('welcome').textContent = 'Welcome, ' + session.user.name;
         await showReservations();
         }
