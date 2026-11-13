@@ -5,8 +5,8 @@
 //     <script src="data-supabase.js"></script>
 
 // ---------- settings: Supabase → Project Settings → API ----------
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-const SUPABASE_KEY = 'YOUR-ANON-PUBLIC-KEY';
+const SUPABASE_URL = 'https://ciybtljbqogoknnfffmv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_d4fOjaAWNwHum95wAwSI4A_mfLh0XWQ';
 
 // sessionStorage = each browser tab has its own login (handy for showing an admin and a member side by side)
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storage: sessionStorage } });
