@@ -48,6 +48,8 @@ function resourceStatus(resource, reservations) {
     if (resource.status === 'unavailable') return { text: 'Unavailable', cssClass: 'unavailable', holder: '' };
     const current = reservations.find(r => r.resource_id === resource.id && isNow(r));
     if (current) return { text: 'In use until ' + formatTime(current.end_time), cssClass: 'in-use', holder: current.userName };
+    // live_status comes from the RFID readers: someone badged in without a reservation
+    if (resource.live_status === 'in_use') return { text: 'In use (checked in)', cssClass: 'in-use', holder: '' };
     return { text: 'Available', cssClass: 'available', holder: '' };
 }
 

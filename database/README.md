@@ -14,8 +14,13 @@ Owner: Nick Mendoza
 | `02_seed.sql` | Test org (Fresno State CS), Study Room 101, TI-84 calculator, reader `ESP32_01`, template for a test user | Once, after 01 |
 | `03_handle_scan.sql` | `handle_scan()`, the function the ESP32 calls on every card tap | Once, after 02 |
 | `04_checks.sql` | Health checks, scan tests, and key rotation | Anytime |
+| `05_frontend_support.sql` | What the website needs: org branding, resource hours, public org list, invites, `create_organization` / `add_member` / `remove_member` | Once, after 03 |
+| `00_reset.sql` | **Deletes all app tables and data.** Use only to rebuild from scratch | Only on purpose |
 
-To rebuild from scratch: Supabase Dashboard → SQL Editor → run 01, 02, 03 in order, then set a reader key (bottom of `04_checks.sql`).
+To rebuild from scratch: Supabase Dashboard → SQL Editor → run 00, 01, 02, 03, 05 in order, then set a reader key (bottom of `04_checks.sql`).
+
+## Website ↔ database
+The pages in `Frontend/` never query tables directly. They only call functions in `Frontend/data-supabase.js`, which translates between the page shapes (`date` + `start_time`/`end_time`, role `user`/`admin`, status `available`/`unavailable`) and this schema (`starts_at`/`ends_at`, role `member`/`admin`, live status from the RFID readers). **If you need a schema change, change the adapter, not the tables**, so `handle_scan` and the ESP32 keep working.
 Re-running 01 or 02 on an existing database fails with "already exists" / "duplicate key". That's expected and changes nothing.
 
 ## Tables
