@@ -51,23 +51,19 @@
 
         // Decide which part of the page to show
         async function start() {
-            const email = await getGoogleEmail();
-            if (!email) {
-                document.getElementById('signInPart').hidden = false;
-                return;
+            try {
+                const email = await getGoogleEmail();
+                if (!email) {
+                    document.getElementById('signInPart').hidden = false;
+                    return;
+                }
+                // People can belong to several organizations, so anyone signed in can create one
+                document.getElementById('emailText').textContent = email;
+                document.getElementById('formPart').hidden = false;
+                applyBranding({ color: document.getElementById('orgColor').value });
+            } catch (error) {
+                showMessage('msg', error.message, true);
             }
-            const session = await getSession();
-            if (session) {
-                // This Google account already belongs to an organization
-                document.getElementById('alreadyText').innerHTML =
-                    `${esc(email)} already belongs to <strong>${esc(session.org.name)}</strong>. ` +
-                    `<a href="${session.user.role === 'admin' ? 'adminDashboard.html' : 'userDashboard.html'}">Go to your dashboard</a>`;
-                document.getElementById('alreadyPart').hidden = false;
-                return;
-            }
-            document.getElementById('emailText').textContent = email;
-            document.getElementById('formPart').hidden = false;
-            applyBranding({ color: document.getElementById('orgColor').value });
         }
 
         // Sign in with Google, then come back to this page

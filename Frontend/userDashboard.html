@@ -53,7 +53,11 @@
 
         async function handleCancel(reservationId) {
         if (!confirm('Cancel this reservation? The time will open up for others.')) return;
-        await cancelReservation(reservationId);
+        try {
+            await cancelReservation(reservationId);
+        } catch (error) {
+            alert(error.message);
+        }
         await showReservations();
         }
 
